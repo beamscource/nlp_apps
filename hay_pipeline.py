@@ -1,13 +1,14 @@
 
 # general imports
 import argparse
+import io
 import os
 import re
 
 # for progress bars
 from tqdm import tqdm
 
-# for downloding PDFs
+# for downloading PDFs
 import requests
 from bs4 import BeautifulSoup
 
@@ -65,8 +66,9 @@ def download_pdfs(url, pdf_folder, number_pdfs):
 def convert_from_pdf(file_list):
 
     # https://docs.haystack.deepset.ai/docs/file_converters
-    documents = []
 
+    documents = []
+    print(f'Converting {len(file_list)} PDF files to documents.')
 
     for file in tqdm(file_list):
 
@@ -106,42 +108,63 @@ def translate_docs(documents):
     
     return translations
 
+def write_to_pdf(documents):
+    pass
 
 def main(args):
 
     url = args.download_url
-    document_folder = args.document_folder
+    pdf_folder = args.pdf_folder
+    number_pdfs = args.number_pdfs
+    summarize = args.summarize
+    translate = args.translate
+    trans_model = args.translation_model
+    summ_model = args.summarization_model
 
-    if not os.path.isdir(document_folder):
-        os.makedirs(document_folder)
+    BASE_PATH = os.getcwd()
 
-    if len([file for file in os.listdir(document_folder) \
+    if not os.path.isdir(pdf_folder):
+        os.makedirs(pdf_folder)
+
+    if len([file for file in os.listdir(pdf_folder) \
         if file.endswith('.pdf')]) == 0:
-        download_pdfs(url, document_folder)
+        download_pdfs(url, pdf_folder, number_pdfs)
 
-    file_list = get_file_list(document_folder)
-    documents = convert_from_pdf(file_list)
+    file_list = get_file_list(pdf_folder)
+    documents = convert_from_pdf(file_list, os.path.join(BASE_PATH, \
+        pdf_folder))
 
     if summarize:
-        documents = summarize_docs(documents)
+        documents = summarize_docs(documents, summ_model)
     
     if translate:
-        documents = translate_docs(documents)
+        documents = translate_docs(documents, trans_model)
+
+    # TO_DO write to pdf
+    write_to_pdf(documents)
 
 if __name__ == '__main__':
 
-    parser = argparse.ArgumentParser(description='A Haystack pipeline downloading \
-             PDF files, converting them to text and processing their contents. The \
-             results are printed to a PDF file.')
+    parser = argparse.ArgumentParser(description='A Haystack pipeline \
+            downloading PDF files, converting them to text and processing \
+            their contents. The results are printed to a PDF file.')
 
     parser.add_argument('-url', '--download_url', type=str, \
             default='https://arxiv.org/list/cs.AI/recent', \
             help='URL where to download PDF files.')
-    parser.add_argument('-f', '--document_folder', type=str, default='pdf_files', \
+    parser.add_argument('-pdf', '--pdf_folder', type=str, default='pdf_files', \
             help='Folder for saving the PDF files locally.')
+    parser.add_argument('-n', '--number_pdfs', type=int, default=3, \
+            help='Number of PDF files to download.')
     parser.add_argument('-s', '--summarize', type=bool, default=True, \
             help='Texts are summarized when set to True.')
     parser.add_argument('-t', '--translate', type=bool, default=True, \
             help='Texts are translated when set to True.')
+    parser.add_argument('-sm', '--summarization_model', type=str, \
+            default='google/pegasus-xsum', \
+            help='HuggingFace model used for summarization.')
+    parser.add_argument('-tm', '--translation_model', type=str, \
+            default='Helsinki-NLP/opus-mt-en-de', \
+            help='HuggingFace model used for translation.')
 
     main(parser.parse_args())
