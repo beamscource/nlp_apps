@@ -4,9 +4,11 @@ import argparse
 import io
 import os
 import re
+import sys
 
 # for progress bars
 from tqdm import tqdm
+import logging
 
 # for downloading PDFs
 import requests
@@ -18,7 +20,7 @@ from haystack import Document
 from haystack.nodes import TransformersSummarizer
 from haystack.nodes import TransformersTranslator
 
-#from haystack.utils import clean_wiki_text, convert_files_to_docs
+from haystack.utils import clean_wiki_text, convert_files_to_docs
 
 def get_file_list(pdf_folder):
 
@@ -104,8 +106,8 @@ def translate_docs(documents, trans_model):
     print(f'Translating {len(documents)} documents.')
 
     translator = TransformersTranslator(model_name_or_path=trans_model)
-    translation = translator.translate(documents=documents, query=None)
-    breakpoint()
+    translations = translator.translate(documents=documents, query=None)
+
     return translations
 
 def write_to_pdf(documents):
