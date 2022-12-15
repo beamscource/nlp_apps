@@ -4,6 +4,7 @@ import argparse
 import os
 import re
 
+# for progress bars
 from tqdm import tqdm
 
 # for downloding PDFs
@@ -23,29 +24,43 @@ def get_file_list(document_folder):
         file_list = []
 
     for file in os.listdir(document_folder):
-        if file.endswith('.txt'):
-            file_list.apped(file)
+        if file.endswith('.pdf'):
+            file_list.append(file)
     
     return file_list
 
-def download_pdfs(url, document_folder):
+def download_pdfs(url, pdf_folder, number_pdfs):
 
+    # define the base URL
+    https, rest = url.split('//')
+    base_url, *_ = rest.split('/')
+    # https:// ...
+    base_url = ''.join([https, '//', base_url])
+    
     # request URL and get response object
     response = requests.get(url)
     soup = BeautifulSoup(response.text, 'html.parser')
     
-    # extract hyperlinks for PDFs
+    # extract and clean hyperlinks for PDF files
     links = soup.find_all('a')
-    link_pattern = re.compile('href="(.*?)"')
-    pdf_links = [link for link in links if ('pdf' in link.get('href', []))]
+    pdf_links = [re.findall(re.compile('href="(.*?)"'), str(link)) \
+        for link in links if ('pdf' in link.get('href', []))]
+    
+    # combine relative URLs with the base URL
+    complete_pdf_links = []
+    for link in pdf_links:
+        complete_pdf_links.append(''.join([base_url, link[0], '.pdf']))
 
-    for i, link in enumerate(tqdm(links)):
+    print(f'Downloading {len(complete_pdf_links[:number_pdfs])} PDF files.')
 
-        # TO_DO: get file_name to save file
-        response = requests.get(link.get('href'))
-        with open(os.path.join(document_folder, 'file_'+ str(i+1)+'.pdf'), \
+    for pdf_link in tqdm(complete_pdf_links[:number_pdfs]):
+
+        response = requests.get(pdf_link)
+        pdf_object = io.BytesIO(response.content).read()
+        
+        with open(os.path.join(pdf_folder, pdf_link.split('/')[-1]), \
             'wb') as f:
-            f.write(response.content)
+            f.write(pdf_object)
 
 def convert_from_pdf(file_list):
 
