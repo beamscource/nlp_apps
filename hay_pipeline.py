@@ -19,7 +19,14 @@ from haystack.nodes import TransformersTranslator
 
 def get_file_list(document_folder):
 
-    pass
+    if os.path.isdir(document_folder):
+        file_list = []
+
+    for file in os.listdir(document_folder):
+        if file.endswith('.txt'):
+            file_list.apped(file)
+    
+    return file_list
 
 def download_pdfs(url, document_folder):
 
@@ -90,15 +97,21 @@ def main(args):
     url = args.download_url
     document_folder = args.document_folder
 
+    if not os.path.isdir(document_folder):
+        os.makedirs(document_folder)
 
-    download_pdfs(url, document_folder)
+    if len([file for file in os.listdir(document_folder) \
+        if file.endswith('.pdf')]) == 0:
+        download_pdfs(url, document_folder)
 
     file_list = get_file_list(document_folder)
     documents = convert_from_pdf(file_list)
 
-    documents = summarize_docs(documents)
+    if summarize:
+        documents = summarize_docs(documents)
     
-    documents = translate_docs(documents)
+    if translate:
+        documents = translate_docs(documents)
 
 if __name__ == '__main__':
 
