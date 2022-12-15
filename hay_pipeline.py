@@ -14,17 +14,18 @@ from bs4 import BeautifulSoup
 
 # for summarization and translation
 from haystack.nodes import PDFToTextConverter
+from haystack import Document
 from haystack.nodes import TransformersSummarizer
 from haystack.nodes import TransformersTranslator
 
 #from haystack.utils import clean_wiki_text, convert_files_to_docs
 
-def get_file_list(document_folder):
+def get_file_list(pdf_folder):
 
-    if os.path.isdir(document_folder):
+    if os.path.isdir(pdf_folder):
         file_list = []
 
-    for file in os.listdir(document_folder):
+    for file in os.listdir(pdf_folder):
         if file.endswith('.pdf'):
             file_list.append(file)
     
@@ -63,49 +64,48 @@ def download_pdfs(url, pdf_folder, number_pdfs):
             'wb') as f:
             f.write(pdf_object)
 
-def convert_from_pdf(file_list):
+def convert_from_pdf(file_list, pdf_folder):
 
     # https://docs.haystack.deepset.ai/docs/file_converters
-
     documents = []
-    print(f'Converting {len(file_list)} PDF files to documents.')
 
-    for file in tqdm(file_list):
+    print(f'Converting {len(file_list)} PDF files to text documents.')
 
-        converter = PDFToTextConverter(
+    converter = PDFToTextConverter(
             remove_numeric_tables=True,
             valid_languages=["en"]
         )
-        doc = converter.convert(file_path=Path(file), meta=None)
-        documents.append(doc)
-    
+
+    # TO DO: clean text/target abstract
+    for file in tqdm(file_list):
+
+        document = converter.convert(file_path=os.path.join(pdf_folder, \
+            file), meta=None)
+        #documents.extend(document)
+        documents.append(Document(document[0].content))
+
     return documents
 
-def summarize_docs(documents):
-    
+def summarize_docs(documents, summ_model):
+
     # https://docs.haystack.deepset.ai/docs/summarizer
-    # TO_DO: experiment with different models
-    summarizer = TransformersSummarizer(model_name_or_path='Helsinki-NLP/opus-mt-en-de')
-    summaries = []
-    
-    for document in tqdm(documents):
-        summary.content = summarizer.predict(documents=[document])
-        summaries.append(summary)
-    
+
+    print(f'Summarizing {len(documents)} documents.')
+    # TO DO find a model with longer input sequence
+    summarizer = TransformersSummarizer(model_name_or_path=summ_model)
+    summaries = summarizer.predict(documents=documents)
+
     return summaries
 
-def translate_docs(documents):
+def translate_docs(documents, trans_model):
 
     # https://docs.haystack.deepset.ai/docs/translator
 
-    # TO_DO choose model
-    translator = TransformersTranslator(model_name_or_path='google/pegasus-xsum')
-    translations = []
+    print(f'Translating {len(documents)} documents.')
 
-    for document in tqdm(documents):
-        translation = translator.translate(documents=[document], query=None)
-        translations.append(translation)
-    
+    translator = TransformersTranslator(model_name_or_path=trans_model)
+    translation = translator.translate(documents=documents, query=None)
+    breakpoint()
     return translations
 
 def write_to_pdf(documents):
