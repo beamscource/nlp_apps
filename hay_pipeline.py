@@ -1,4 +1,11 @@
 
+''' A script to 
+
+    How it works:
+    1) 
+
+    2) '''
+
 # general imports
 import argparse
 import io
@@ -66,7 +73,42 @@ def download_pdfs(url, pdf_folder, number_pdfs):
             'wb') as f:
             f.write(pdf_object)
 
-def convert_from_pdf(file_list, pdf_folder):
+def convert_from_pdf(file_list, pdf_folder, number_pdfs):
+
+    def extract_clean_text(document, extract):
+
+        # extract specific number of words
+        if extract == 'simple':
+            #abstract_pattern = re.compile(r'Abstract(^(?:\S+\s+\n?){1,150})', re.DOTALL)
+            abstract_pattern = re.compile(r'Abstract(.{1500})', re.DOTALL)
+            abstract = re.findall(abstract_pattern, document[0].content)
+            try:
+                abstract = re.sub(r'-\n', '', abstract[0])
+                abstract = abstract.lstrip('.')
+                abstract = re.sub(r'\n', ' ', abstract).strip()
+            except:
+                abstract = document[0].content[50:1500]
+                abstract = re.sub(r'-\n', '', abstract)
+                abstract = re.sub(r'\n', ' ', abstract).strip()
+            return abstract
+
+        # case: abstract with keywords
+        abstract_key_pattern = re.compile(r'Abstract(.*?)Keywords', re.DOTALL)
+        if re.findall(abstract_key_pattern, document[0].content):
+            abstract = re.findall(abstract_key_pattern, document[0].content)
+            abstract = re.sub(r'-\n', '', abstract[0])
+            abstract = re.sub(r'\n', ' ', abstract).strip()
+            
+            # extract and clean keywords
+            keywords_pattern = re.compile(r'Keywords: (.*?)\n[A-Z]', re.DOTALL)
+            keywords = re.findall(keywords_pattern, document[0].content)
+            keywords = re.sub(r'-\n', '', keywords[0])
+            keywords = re.sub(r'\n', ' ', keywords).strip()
+            
+            # combine abstract and keywords
+            document = ' '.join([abstract, 'Keywords: ', keywords])
+        
+            return document
 
     # https://docs.haystack.deepset.ai/docs/file_converters
     documents = []
@@ -78,13 +120,12 @@ def convert_from_pdf(file_list, pdf_folder):
             valid_languages=["en"]
         )
 
-    # TO DO: clean text/target abstract
-    for file in tqdm(file_list):
+    for file in tqdm(file_list[:number_pdfs]):
 
         document = converter.convert(file_path=os.path.join(pdf_folder, \
             file), meta=None)
-        #documents.extend(document)
-        documents.append(Document(document[0].content))
+        document = extract_clean_text(document, 'simple')
+        documents.append(Document(document))
 
     return documents
 
@@ -96,6 +137,9 @@ def summarize_docs(documents, summ_model):
     # TO DO find a model with longer input sequence
     summarizer = TransformersSummarizer(model_name_or_path=summ_model)
     summaries = summarizer.predict(documents=documents)
+    # TO DO extract summary for translation
+    # content
+    #.meta["summary"]
 
     return summaries
 
@@ -107,7 +151,6 @@ def translate_docs(documents, trans_model):
 
     translator = TransformersTranslator(model_name_or_path=trans_model)
     translations = translator.translate(documents=documents, query=None)
-
     return translations
 
 def write_to_pdf(documents):
@@ -123,7 +166,7 @@ def main(args):
     trans_model = args.translation_model
     summ_model = args.summarization_model
 
-    BASE_PATH = os.getcwd()
+    BASE_DIR = os.getcwd()
 
     if not os.path.isdir(pdf_folder):
         os.makedirs(pdf_folder)
@@ -133,8 +176,8 @@ def main(args):
         download_pdfs(url, pdf_folder, number_pdfs)
 
     file_list = get_file_list(pdf_folder)
-    documents = convert_from_pdf(file_list, os.path.join(BASE_PATH, \
-        pdf_folder))
+    documents = convert_from_pdf(file_list, os.path.join(BASE_DIR, \
+        pdf_folder), number_pdfs)
 
     if summarize:
         documents = summarize_docs(documents, summ_model)
