@@ -155,13 +155,23 @@ def scrape_web_site(url):
     for link in abstract_links:
         complete_abstract_links.append(''.join([base_url, link[0]]))
     
+    titles = []
+    documents = []
     for abstract_link in complete_abstract_links:
         response = requests.get(abstract_link)
         soup = BeautifulSoup(response.text, 'html.parser')
-        
-        
         title = soup.title.get_text().split('] ')[1]
-        breakpoint()
+        abstract = soup.find_all('blockquote')[0].text
+        abstract = abstract.split('Abstract: ')[1]
+        abstract = re.sub(r'-\n', '', abstract)
+        abstract = re.sub(r'\n', ' ', abstract).strip()
+        titles.append(title)
+        documents.append(abstract)
+        # url to the pdf
+        # publication date
+        # category
+        # keywords
+        # authors
     return titles, documents
 
 def summarize_docs(documents, summ_model):
@@ -255,6 +265,7 @@ def main(args):
 
     if abstract_source == 'web':
         titles, documents = scrape_web_site(url)
+        abstracts = documents[:]
     else:
         if len([file for file in os.listdir(pdf_folder) \
             if file.endswith('.pdf')]) == 0:
@@ -265,10 +276,10 @@ def main(args):
         documents = convert_from_pdf(file_list, os.path.join(BASE_DIR, \
             pdf_folder), number_pdfs)
 
-    # save original abstracts
-    abstracts = []
-    for abstract in documents:
-        abstracts.append(abstract.content)
+        # save original abstracts
+        abstracts = []
+        for abstract in documents:
+            abstracts.append(abstract.content)
 
     if summarize:
         documents = summarize_docs(documents, summ_model)
