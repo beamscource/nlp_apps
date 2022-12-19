@@ -129,6 +129,9 @@ def convert_from_pdf(file_list, pdf_folder, number_pdfs):
 
     return documents
 
+def scrape_web_site(url):
+    pass
+
 def summarize_docs(documents, summ_model):
 
     # https://docs.haystack.deepset.ai/docs/summarizer
@@ -137,9 +140,6 @@ def summarize_docs(documents, summ_model):
     # TO DO find a model with longer input sequence
     summarizer = TransformersSummarizer(model_name_or_path=summ_model)
     summaries = summarizer.predict(documents=documents)
-    # TO DO extract summary for translation
-    # content
-    #.meta["summary"]
 
     return summaries
 
@@ -151,9 +151,10 @@ def translate_docs(documents, trans_model):
 
     translator = TransformersTranslator(model_name_or_path=trans_model)
     translations = translator.translate(documents=documents, query=None)
+
     return translations
 
-def write_to_pdf(documents):
+def write_to_pdf(*args):
     pass
 
 def main(args):
@@ -179,14 +180,28 @@ def main(args):
     documents = convert_from_pdf(file_list, os.path.join(BASE_DIR, \
         pdf_folder), number_pdfs)
 
+    # save original abstracts
+    abstracts = []
+    for abstract in documents:
+        abstracts.append(abstract.content)
+
     if summarize:
         documents = summarize_docs(documents, summ_model)
-    
+        # save summaries
+        summaries = []
+        for document in documents:
+            summaries.append(document.meta["summary"])
+
     if translate:
         documents = translate_docs(documents, trans_model)
-
+        # save translations
+        translations = []
+        for document in documents:
+            translations.append(document.content)
+    breakpoint()
     # TO_DO write to pdf
-    write_to_pdf(documents)
+    write_to_pdf(abstracts, summaries, translations)
+    #write_to_pdf(titles, abstracts, keywords, summaries, translations)
 
 if __name__ == '__main__':
 
