@@ -134,7 +134,35 @@ def convert_from_pdf(file_list, pdf_folder, number_pdfs):
     return documents
 
 def scrape_web_site(url):
-    pass
+
+    # define the base URL
+    https, rest = url.split('//')
+    base_url, *_ = rest.split('/')
+    # https:// ...
+    base_url = ''.join([https, '//', base_url])
+    
+    # request URL and get response object
+    response = requests.get(url)
+    soup = BeautifulSoup(response.text, 'html.parser')
+
+    # extract and clean hyperlinks for abstracts
+    links = soup.find_all('a')
+    abstract_links = [re.findall(re.compile('href="(.*?)"'), str(link)) \
+        for link in links if ('abs' in link.get('href', []))]
+    
+    # combine relative URLs with the base URL
+    complete_abstract_links = []
+    for link in abstract_links:
+        complete_abstract_links.append(''.join([base_url, link[0]]))
+    
+    for abstract_link in complete_abstract_links:
+        response = requests.get(abstract_link)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        
+        title = soup.title.get_text().split('] ')[1]
+        breakpoint()
+    return titles, documents
 
 def summarize_docs(documents, summ_model):
 
@@ -181,17 +209,29 @@ def write_to_pdf(abstracts, summaries, translations, pdf_file):
 
     for abstract, summary, translation in zip(abstracts, summaries, translations):
 
-        pdf.cell(0, txt = 'Abstract', ln = 1)
-        abstract_lines = textwrap.wrap(abstract, width_text)
+        pdf.cell(0, fontsize_mm, txt = 'Abstract', ln = 1)
+        try:
+            abstract_lines = textwrap.wrap(abstract, width_text)
+        except:
+            abstract_lines = textwrap.wrap('empty', width_text)
         for wrap in abstract_lines:
             pdf.cell(0, fontsize_mm, wrap, ln=1)
-        pdf.cell(0, txt = 'Summary', ln = 1)
-        summary_lines = textwrap.wrap(summary, width_text)
+
+        # entities will go here
+
+        pdf.cell(0, fontsize_mm, txt = 'Summary', ln = 1)
+        try:
+            summary_lines = textwrap.wrap(summary, width_text)
+        except:
+            summary_lines = textwrap.wrap('empty', width_text)
         for wrap in summary_lines:
             pdf.cell(0, fontsize_mm, wrap, ln=1)
-        pdf.cell(0, txt = 'Translation', ln = 1)
-        breakpoint()
-        translation_lines = textwrap.wrap(translation, width_text)
+        
+        pdf.cell(0, fontsize_mm, txt = 'Translation', ln = 1)
+        try:
+            translation_lines = textwrap.wrap(translation, width_text)
+        except:
+            translation_lines = textwrap.wrap('empty', width_text)
         for wrap in translation_lines:
             pdf.cell(0, fontsize_mm, wrap, ln=1)
 
@@ -200,6 +240,7 @@ def write_to_pdf(abstracts, summaries, translations, pdf_file):
 def main(args):
 
     url = args.download_url
+    abstract_source = args.abstract_source
     pdf_folder = args.pdf_folder
     number_pdfs = args.number_pdfs
     summarize = args.summarize
@@ -212,13 +253,17 @@ def main(args):
     if not os.path.isdir(pdf_folder):
         os.makedirs(pdf_folder)
 
-    if len([file for file in os.listdir(pdf_folder) \
-        if file.endswith('.pdf')]) == 0:
-        download_pdfs(url, pdf_folder, number_pdfs)
+    if abstract_source == 'web':
+        titles, documents = scrape_web_site(url)
+    else:
+        if len([file for file in os.listdir(pdf_folder) \
+            if file.endswith('.pdf')]) == 0:
+            download_pdfs(url, pdf_folder, number_pdfs)
 
-    file_list = get_file_list(pdf_folder)
-    documents = convert_from_pdf(file_list, os.path.join(BASE_DIR, \
-        pdf_folder), number_pdfs)
+        file_list = get_file_list(pdf_folder)
+        titles = file_list
+        documents = convert_from_pdf(file_list, os.path.join(BASE_DIR, \
+            pdf_folder), number_pdfs)
 
     # save original abstracts
     abstracts = []
@@ -232,6 +277,8 @@ def main(args):
         for document in documents:
             summaries.append(document.meta["summary"])
 
+    # TO DO NER extraction
+
     if translate:
         documents = translate_docs(documents, trans_model)
         # save translations
@@ -239,9 +286,9 @@ def main(args):
         for document in documents:
             translations.append(document.content)
 
+    # path to the summary PDF
     pdf_file = os.path.join(BASE_DIR, pdf_folder, 'summary.pdf')
-    write_to_pdf(abstracts, summaries, translations, pdf_file)
-    #write_to_pdf(titles, abstracts, keywords, summaries, translations)
+    write_to_pdf(titles, abstracts, summaries, translations, pdf_file)
 
 if __name__ == '__main__':
 
@@ -251,7 +298,9 @@ if __name__ == '__main__':
 
     parser.add_argument('-url', '--download_url', type=str, \
             default='https://arxiv.org/list/cs.AI/recent', \
-            help='URL where to download PDF files.')
+            help='URL where to extract abstracts/download PDF files.')
+    parser.add_argument('-as', '--abstract_source', type=str, default='web', \
+            help='Source for getting abstracts.')
     parser.add_argument('-pdf', '--pdf_folder', type=str, default='pdf_files', \
             help='Folder for saving the PDF files locally.')
     parser.add_argument('-n', '--number_pdfs', type=int, default=3, \
