@@ -1,10 +1,10 @@
 
-''' A script to 
-
-    How it works:
-    1) 
-
-    2) '''
+''' A script to extract paper abstracts about AI topics (either from PDFs or
+    directly from the web page), summarizing and translating them using Haystack
+    components (https://docs.haystack.deepset.ai/docs/nodes_overview). Additional
+    components (e.g., EntityExtractor) are easy to integrate. 
+    
+    The results are saved then to a single PDF.'''
 
 # general imports
 import argparse
