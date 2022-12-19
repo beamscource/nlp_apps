@@ -21,6 +21,10 @@ import logging
 import requests
 from bs4 import BeautifulSoup
 
+# for saving PDFs
+from fpdf import FPDF
+import textwrap
+
 # for summarization and translation
 from haystack.nodes import PDFToTextConverter
 from haystack import Document
@@ -154,8 +158,44 @@ def translate_docs(documents, trans_model):
 
     return translations
 
-def write_to_pdf(*args):
-    pass
+def write_to_pdf(abstracts, summaries, translations, pdf_file):
+    # see https://stackoverflow.com/questions/10112244/convert-plain-text-to-pdf-in-python
+
+    # formatting definitions
+    a4_width_mm = 210
+    pt_to_mm = 0.35
+    fontsize_pt = 10
+    fontsize_mm = fontsize_pt * pt_to_mm
+    margin_bottom_mm = 10
+    character_width_mm = 7 * pt_to_mm
+    width_text = a4_width_mm / character_width_mm
+    
+    # create a PDF object
+    pdf = FPDF(orientation='P', unit='mm', format='A4')
+    pdf.set_auto_page_break(True, margin=margin_bottom_mm)
+    pdf.add_page()
+    pdf.add_font('DejaVu', '', 'DejaVuSansCondensed.ttf', uni=True)
+    pdf.set_font('DejaVu', '', size=fontsize_pt)
+
+    print(f'Saving summaries for {len(abstracts)} documents to PDF.')
+
+    for abstract, summary, translation in zip(abstracts, summaries, translations):
+
+        pdf.cell(0, txt = 'Abstract', ln = 1)
+        abstract_lines = textwrap.wrap(abstract, width_text)
+        for wrap in abstract_lines:
+            pdf.cell(0, fontsize_mm, wrap, ln=1)
+        pdf.cell(0, txt = 'Summary', ln = 1)
+        summary_lines = textwrap.wrap(summary, width_text)
+        for wrap in summary_lines:
+            pdf.cell(0, fontsize_mm, wrap, ln=1)
+        pdf.cell(0, txt = 'Translation', ln = 1)
+        breakpoint()
+        translation_lines = textwrap.wrap(translation, width_text)
+        for wrap in translation_lines:
+            pdf.cell(0, fontsize_mm, wrap, ln=1)
+
+    pdf.output(pdf_file)
 
 def main(args):
 
@@ -198,9 +238,9 @@ def main(args):
         translations = []
         for document in documents:
             translations.append(document.content)
-    breakpoint()
-    # TO_DO write to pdf
-    write_to_pdf(abstracts, summaries, translations)
+
+    pdf_file = os.path.join(BASE_DIR, pdf_folder, 'summary.pdf')
+    write_to_pdf(abstracts, summaries, translations, pdf_file)
     #write_to_pdf(titles, abstracts, keywords, summaries, translations)
 
 if __name__ == '__main__':
