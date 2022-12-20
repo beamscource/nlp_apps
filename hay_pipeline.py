@@ -292,6 +292,7 @@ def main(args):
         summaries = []
         for document in documents:
             summaries.append(document.meta["summary"])
+        # document = summaries[:]
 
     # TO DO NER extraction
 
