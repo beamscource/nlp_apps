@@ -1,0 +1,6 @@
+.python-version
+xpdf-tools-linux-4.04/
+pdf_files/
+*.pkl
+*.tar.*
+*.pptx
