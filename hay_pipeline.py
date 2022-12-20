@@ -15,7 +15,6 @@ import sys
 
 # for progress bars
 from tqdm import tqdm
-import logging
 
 # for downloading PDFs
 import requests
@@ -30,8 +29,6 @@ from haystack.nodes import PDFToTextConverter
 from haystack import Document
 from haystack.nodes import TransformersSummarizer
 from haystack.nodes import TransformersTranslator
-
-from haystack.utils import clean_wiki_text, convert_files_to_docs
 
 def get_file_list(pdf_folder):
 
@@ -166,7 +163,7 @@ def scrape_web_site(url):
         abstract = re.sub(r'-\n', '', abstract)
         abstract = re.sub(r'\n', ' ', abstract).strip()
         titles.append(title)
-        documents.append(abstract)
+        documents.append(Document(abstract))
         # url to the pdf
         # publication date
         # category
@@ -196,7 +193,7 @@ def translate_docs(documents, trans_model):
 
     return translations
 
-def write_to_pdf(abstracts, summaries, translations, pdf_file):
+def write_to_pdf(titles, abstracts, summaries, translations, pdf_file):
     # see https://stackoverflow.com/questions/10112244/convert-plain-text-to-pdf-in-python
 
     # formatting definitions
@@ -217,8 +214,17 @@ def write_to_pdf(abstracts, summaries, translations, pdf_file):
 
     print(f'Saving summaries for {len(abstracts)} documents to PDF.')
 
-    for abstract, summary, translation in zip(abstracts, summaries, translations):
+    for title, abstract, summary, translation in zip(titles, abstracts, \
+        summaries, translations):
 
+        pdf.cell(0, fontsize_mm, txt = 'Title', ln = 1)
+        try:
+            title_lines = textwrap.wrap(title, width_text)
+        except:
+            title_lines = textwrap.wrap('empty', width_text)
+        for wrap in title_lines:
+            pdf.cell(0, fontsize_mm, wrap, ln=1)
+        
         pdf.cell(0, fontsize_mm, txt = 'Abstract', ln = 1)
         try:
             abstract_lines = textwrap.wrap(abstract, width_text)
@@ -265,7 +271,6 @@ def main(args):
 
     if abstract_source == 'web':
         titles, documents = scrape_web_site(url)
-        abstracts = documents[:]
     else:
         if len([file for file in os.listdir(pdf_folder) \
             if file.endswith('.pdf')]) == 0:
@@ -276,10 +281,10 @@ def main(args):
         documents = convert_from_pdf(file_list, os.path.join(BASE_DIR, \
             pdf_folder), number_pdfs)
 
-        # save original abstracts
-        abstracts = []
-        for abstract in documents:
-            abstracts.append(abstract.content)
+    # save original abstracts
+    abstracts = []
+    for abstract in documents:
+        abstracts.append(abstract.content)
 
     if summarize:
         documents = summarize_docs(documents, summ_model)
