@@ -217,7 +217,8 @@ def write_to_pdf(titles, abstracts, summaries, translations, pdf_file):
     for title, abstract, summary, translation in zip(titles, abstracts, \
         summaries, translations):
 
-        pdf.cell(0, fontsize_mm, txt = 'Title', ln = 1)
+        pdf.cell(0, fontsize_mm, txt = 'Title', ln=1)
+        pdf.cell(0, fontsize_mm, txt = '', ln=1)
         try:
             title_lines = textwrap.wrap(title, width_text)
         except:
@@ -225,7 +226,9 @@ def write_to_pdf(titles, abstracts, summaries, translations, pdf_file):
         for wrap in title_lines:
             pdf.cell(0, fontsize_mm, wrap, ln=1)
         
-        pdf.cell(0, fontsize_mm, txt = 'Abstract', ln = 1)
+        pdf.cell(0, fontsize_mm, txt = '', ln=1)
+        pdf.cell(0, fontsize_mm, txt = 'Abstract', ln=1)
+        pdf.cell(0, fontsize_mm, txt = '', ln=1)
         try:
             abstract_lines = textwrap.wrap(abstract, width_text)
         except:
@@ -235,7 +238,9 @@ def write_to_pdf(titles, abstracts, summaries, translations, pdf_file):
 
         # entities will go here
 
-        pdf.cell(0, fontsize_mm, txt = 'Summary', ln = 1)
+        pdf.cell(0, fontsize_mm, txt = '', ln=1)
+        pdf.cell(0, fontsize_mm, txt = 'Summary', ln=1)
+        pdf.cell(0, fontsize_mm, txt = '', ln=1)
         try:
             summary_lines = textwrap.wrap(summary, width_text)
         except:
@@ -243,13 +248,16 @@ def write_to_pdf(titles, abstracts, summaries, translations, pdf_file):
         for wrap in summary_lines:
             pdf.cell(0, fontsize_mm, wrap, ln=1)
         
-        pdf.cell(0, fontsize_mm, txt = 'Translation', ln = 1)
+        pdf.cell(0, fontsize_mm, txt = '', ln=1)
+        pdf.cell(0, fontsize_mm, txt = 'Translation', ln=1)
+        pdf.cell(0, fontsize_mm, txt = '', ln=1)
         try:
             translation_lines = textwrap.wrap(translation, width_text)
         except:
             translation_lines = textwrap.wrap('empty', width_text)
         for wrap in translation_lines:
             pdf.cell(0, fontsize_mm, wrap, ln=1)
+        pdf.cell(0, fontsize_mm, txt = '', ln=1)
 
     pdf.output(pdf_file)
 
@@ -292,7 +300,9 @@ def main(args):
         summaries = []
         for document in documents:
             summaries.append(document.meta["summary"])
-        # document = summaries[:]
+        documents = []
+        for summary in summaries:
+            documents.append(Document(summary))
 
     # TO DO NER extraction
 
