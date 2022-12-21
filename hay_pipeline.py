@@ -11,7 +11,6 @@ import argparse
 import io
 import os
 import re
-import sys
 
 # for progress bars
 from tqdm import tqdm
