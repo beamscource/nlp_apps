@@ -6,30 +6,30 @@ import re
 from transformers import pipeline
 from youtube_transcript_api import YouTubeTranscriptApi
 
-# get a transcript from YT video
-def transcribe(video_url, speech_rec_model):
+def get_german_transcript(video_url, language):
 
     video_id = video_url.split("=")[1]
-    video_transcript = YouTubeTranscriptApi.get_transcript(video_id)
+    transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+    transcript = transcript_list.find_transcript([f'{language}'])
+    translated_transcript = transcript.translate('de')
+    video_transcript = translated_transcript.fetch()
 
     transcript_text = ''
     for i in video_transcript:
-        transcript_text += ' ' + i['text']
+        transcript_text += ' ' + i['text'].replace('\n','').strip()
     breakpoint()
     return transcript_text
-# summarize and translate
+
+# summarize 
 
 # speech synthesis
 def main(args):
     
     video_url = args.youtube_url
-    speech_rec_model = args.speech_recognition_model
-    summarize = args.summarize
-    translate = args.translate
-    trans_model = args.translation_model
+    language = args.video_language
     summ_model = args.summarization_model
 
-    transcribe(video_url, speech_rec_model)
+    get_german_transcript(video_url, language)
 
 if __name__ == '__main__':
 
@@ -37,17 +37,9 @@ if __name__ == '__main__':
     summarize.')
     parser.add_argument('-yt', '--youtube_url', type=str, required=True, \
         help='URL for the YT video.')
-    parser.add_argument('-sr', '--speech_recognition_model', type=str, \
-        default='facebook/wav2vec2-base-960h', \
-        help='HuggingFace model used for speech recognition.')
-    parser.add_argument('-s', '--summarize', type=bool, default=True, \
-        help='Transcript is summarized when set to True.')
-    parser.add_argument('-t', '--translate', type=bool, default=True, \
-        help='Summary is translated when set to True.')
+    parser.add_argument('-vl', '--video_language', type=str, default='en', \
+        help='URL for the YT video.')
     parser.add_argument('-sm', '--summarization_model', type=str, \
         default='google/pegasus-xsum', \
         help='HuggingFace model used for summarization.')
-    parser.add_argument('-tm', '--translation_model', type=str, \
-        default='Helsinki-NLP/opus-mt-en-de', \
-        help='HuggingFace model used for translation.')
     main(parser.parse_args())
