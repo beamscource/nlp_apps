@@ -10,6 +10,9 @@ from transformers import AutoTokenizer
 from transformers import AutoModelForSeq2SeqLM
 from espnet2.bin.tts_inference import Text2Speech
 
+import simpleaudio as sa # sudo apt-get install libasound2-dev
+import numpy as np
+
 def get_transcript(video_url, source_language, target_language):
     # see https://github.com/jdepoix/youtube-transcript-api
     video_id = video_url.split("=")[1]
@@ -42,7 +45,10 @@ def summarize(transcript_text, summarization_model):
 def speak(summary_text, synthesis_model):
 
     model = Text2Speech.from_pretrained(synthesis_model)
-    speech_dict  = model(summary_text)
+    speech  = model(summary_text)['wav']
+    audio_array = speech.view(-1).cpu().numpy().astype(np.int16)
+    play_obj = sa.play_buffer(audio_array, 1, 2, model.fs)
+    play_obj.wait_done()
     breakpoint()
 
 def main(args):
