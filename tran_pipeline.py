@@ -1,17 +1,12 @@
 
 import argparse
-import os
-import re
-
 from youtube_transcript_api import YouTubeTranscriptApi
 
-import torch
 from transformers import AutoTokenizer
 from transformers import AutoModelForSeq2SeqLM
 from espnet2.bin.tts_inference import Text2Speech
 
 import simpleaudio as sa # sudo apt-get install libasound2-dev
-import numpy as np
 
 def get_transcript(video_url, source_language, target_language):
     # see https://github.com/jdepoix/youtube-transcript-api
@@ -46,10 +41,13 @@ def speak(summary_text, synthesis_model):
 
     model = Text2Speech.from_pretrained(synthesis_model)
     speech  = model(summary_text)['wav']
-    audio_array = speech.view(-1).cpu().numpy().astype(np.int16)
-    play_obj = sa.play_buffer(audio_array, 1, 2, model.fs)
+    audio_array = speech.view(-1).cpu().numpy()
+    # https://simpleaudio.readthedocs.io/en/latest/simpleaudio.html
+    play_obj = sa.play_buffer(audio_array, 1, 4, model.fs)
+    print('==================================================================')
+    print('LISTEN TO THE SUMMARY')
+    print('==================================================================')
     play_obj.wait_done()
-    breakpoint()
 
 def main(args):
     
