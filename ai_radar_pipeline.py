@@ -1,6 +1,10 @@
 '''A pipeline script levereging topic modelling with BERTopic and an Aleph Alpha
     completion prompt to cluster and categorize research papers based on their
     abstract.
+
+    NOTE: The pipeline assumes a SQL database which stores texts along with their
+    publication dates. The logic to connect to the database is written in
+    database_handling.py which is not included in the current upload.
     
     Single steps include:
     1) Connecting to SQL database and fetching article based on their publication
