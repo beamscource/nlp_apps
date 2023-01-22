@@ -1,6 +1,11 @@
 .python-version
-xpdf-tools-linux-4.04/
-pdf_files/
+*.md
 *.pkl
-*.tar.*
 *.pptx
+*.tar.*
+*.ttf
+*.zip
+db_code/
+ki_trendradar/
+pdf_files/
+xpdf-tools-linux-4.04/
