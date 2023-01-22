@@ -1,0 +1,4 @@
+aleph_alpha_client
+bertopic
+scikit-learn
+tqdm
