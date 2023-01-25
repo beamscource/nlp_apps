@@ -59,12 +59,16 @@ from bertopic import BERTopic
 from sentence_transformers import SentenceTransformer
 from visualize_topic_model import visualize_topic_model
 
-def model_clusters(documents, plot_model):
+from corextopic import corextopic as ct
+
+def model_clusters(documents, docs_per_cluster, plot_model):
 
     vectorizer_model = TfidfVectorizer(stop_words="english", ngram_range=(1, 2))
     sentence_model = SentenceTransformer('sentence-transformers/all-mpnet-base-v2')
-    topic_model = BERTopic(vectorizer_model=vectorizer_model, \
-                           embedding_model=sentence_model)
+    topic_model = BERTopic(vectorizer_model=vectorizer_model,
+                           embedding_model=sentence_model,
+                           nr_topics=round(len(documents)/docs_per_cluster),
+                           top_n_words=15)
     print(f'=================================================================')
     print(f'Computing the topic model.')
     topic_model.fit(documents)
@@ -80,10 +84,9 @@ def model_clusters(documents, plot_model):
 
     if plot_model:
         visualize_topic_model(topic_model)
-    
+
     document_info = topic_model.get_document_info(documents)
     document_cluster_mapping = document_info[['Document', 'Topic', 'Probability']]
-
     return top_clusters_with_terms, document_cluster_mapping
 
 def read_aa_token(token_file):
@@ -119,6 +122,7 @@ def main(args):
     start_date = args.start_date
     end_date = args.end_date
     token_file = args.token_file
+    docs_per_cluster = args.docs_per_cluster
     plot_model = args.plot_model
 
     # get entries from the DB
@@ -130,8 +134,10 @@ def main(args):
     connection.close()
 
     # model with BERTopic
-    top_clusters_with_terms, document_cluster_mapping = model_clusters(db_entries['summary'],\
-                                                                          plot_model)
+    top_clusters_with_terms, document_cluster_mapping = \
+        model_clusters(db_entries['summary'],\
+        docs_per_cluster,\
+        plot_model)
 
     # label_clusters with Aleph Alpha
     token = read_aa_token(token_file)
@@ -140,11 +146,21 @@ def main(args):
     # match original documents with Aleph Alpha labels
     document_cluster_mapping['cluster_label'] = \
                         document_cluster_mapping['Topic'].map(labeled_clusters)
-    document_cluster_mapping.columns = ['abstract', 'cluster', 'doc_probability',\
-                                        'cluster_label']
-    document_cluster_mapping.to_excel('aa_labeled_clusters.xlsx', \
-                                      sheet_name='99_docs', index=False)
-    # save all results to a CSV file
+    document_cluster_mapping.columns = ['abstract', 'topic_cluster', 'doc_probability',\
+                                        'topic_label']
+    # output table for debugging
+    if os.path.isfile('labeled_clusters.xlsx'):
+        mode='a'
+    else:
+        mode='w'
+
+    with pd.ExcelWriter('_labeled_clusters.xlsx', engine='openpyxl', mode=mode) \
+                        as writer:
+        document_cluster_mapping.to_excel(writer, \
+                                      sheet_name=f'{len(db_entries)}_{docs_per_cluster}_docs', \
+                                      index=False)
+
+    # TO DO: save all results to a CSV file
     # for format see https://github.com/thoughtworks/build-your-own-radar#using-csv-data
 
 if __name__ == '__main__':
@@ -154,11 +170,13 @@ if __name__ == '__main__':
             adding titles to them.')
 
     parser.add_argument('-sd', '--start_date', type=str, \
-            default='2022-01-20', help='Earliest publishing date.')
+            default='2022-01-01', help='Earliest publishing date.')
     parser.add_argument('-ed', '--end_date', type=str, \
-            default='2022-01-22', help='Latest publishing date.')
+            default='2022-01-31', help='Latest publishing date.')
     parser.add_argument('-t', '--token_file', type=str, \
             default='token', help='File where the Aleph Alpha token is stored.')
+    parser.add_argument('-dc', '--docs_per_cluster', type=int, \
+            default=25, help='Approximate number of documents per each topic.')
     parser.add_argument('-pm', '--plot_model', type=bool, \
             default=True, help='If set to True, topic model is visualized.')
 
