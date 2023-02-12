@@ -42,36 +42,71 @@
 # general imports
 import argparse
 import os
+from math import floor
 from tqdm import tqdm
 import time
+import datetime
 
 # data base handling
 from database_handling import connect_mysql_sql_db, download_all_articles_by_date
 
 # aleph alpha
 from aleph_alpha_client import AlephAlphaModel, Prompt, CompletionRequest
-from few_shots_lib import topic_shots, topic_from_keys_shots
+from few_shots_lib import topic_from_keys_shots, summary_shots_translation_shorter
 
 # data and topic modelling
 import pandas as pd
+import numpy as np
+import umap
+import hdbscan
 from sklearn.feature_extraction.text import TfidfVectorizer
+#from sklearn.feature_extraction.text import CountVectorizer
 from bertopic import BERTopic
 from sentence_transformers import SentenceTransformer
 from visualize_topic_model import visualize_topic_model
 
-from corextopic import corextopic as ct
-
-def model_clusters(documents, docs_per_cluster, plot_model):
+def model_clusters(documents, plot_model, run_start, category_tag):
 
     vectorizer_model = TfidfVectorizer(stop_words="english", ngram_range=(1, 2))
+    #vectorizer_model = CountVectorizer(stop_words="english")
     sentence_model = SentenceTransformer('sentence-transformers/all-mpnet-base-v2')
-    topic_model = BERTopic(vectorizer_model=vectorizer_model,
-                           embedding_model=sentence_model,
-                           nr_topics=round(len(documents)/docs_per_cluster),
-                           top_n_words=15)
+    #sentence_model = SentenceTransformer('allenai-specter')
+
+    # create documents embeddings
+    print(f'=================================================================')
+    print(f'Embedding documents with the tag {category_tag} as vectors.')
+    t0 = time.time()
+    embeddings = sentence_model.encode(documents, show_progress_bar=True)
+
+    # define UMAP model to reduce embeddings dimension
+    umap_model = umap.UMAP(n_neighbors=15,
+                        n_components=10,
+                        min_dist=0.0,
+                        metric='cosine',
+                        low_memory=False,
+                        random_state=42)
+
+    # Define HDBSCAN model to perform documents clustering
+    hdbscan_model = hdbscan.HDBSCAN(min_cluster_size=4,
+                                    min_samples=1,
+                                    metric='euclidean',
+                                    cluster_selection_epsilon=0.0,
+                                    cluster_selection_method='leaf',
+                                    prediction_data=True)
+
+    topic_model = BERTopic(top_n_words=10,
+                       vectorizer_model=vectorizer_model,
+                       calculate_probabilities=False,
+                       umap_model= umap_model,
+                       hdbscan_model=hdbscan_model,
+                       verbose=False)
+
     print(f'=================================================================')
     print(f'Computing the topic model.')
-    topic_model.fit(documents)
+    topic_model.fit(documents, embeddings)
+    t1 = time.time()
+    print(f'=================================================================')
+    print(f'Total time passed: {str(datetime.timedelta(seconds=round(t1-t0)))}')
 
     print(f'=================================================================')
     print(f'Extracting representative terms for the clusters.')
@@ -83,10 +118,15 @@ def model_clusters(documents, docs_per_cluster, plot_model):
                 clusters_with_keywords[cluster]]
 
     if plot_model:
-        visualize_topic_model(topic_model)
+        run_dir = os.path.join('./_pipeline_runs/', run_start)
+        if not os.path.isdir(run_dir):
+            os.mkdir(run_dir)
+        visualize_topic_model(topic_model, run_dir, category_tag)
 
     document_info = topic_model.get_document_info(documents)
-    document_cluster_mapping = document_info[['Document', 'Topic', 'Probability']]
+    document_cluster_mapping = document_info[['Document', 'Topic', 'Probability',\
+                                              'Representative_document']]
+
     return top_clusters_with_terms, document_cluster_mapping
 
 def read_aa_token(token_file):
@@ -117,13 +157,63 @@ def label_clusters(top_clusters_with_terms, token):
 
     return labeled_clusters
 
+def summarize_translate(abstracts, token):
+
+    model = AlephAlphaModel.from_model_name(model_name="luminous-extended", token=token)
+    few_shots = summary_shots_translation_shorter()
+
+    traslated_summaries = {}
+    print(f'=================================================================')
+    print(f'Creating summaries for abstracts.')
+    for abstract in tqdm(abstracts):
+        prompted_abstract = Prompt(few_shots.format(' '.join(abstract)))
+        request = CompletionRequest(prompt=prompted_abstract, maximum_tokens=200, \
+                                    stop_sequences=['###'])
+        result = model.complete(request)
+        traslated_summaries[abstract] = \
+                        result.completions[0].completion.split('\n')[0].strip()
+
+    return traslated_summaries
+
+def filter_abstracts_in_clusters(document_cluster_mapping, top_clusters_with_terms):
+
+    document_cluster_mapping['Keyword_match'] = np.nan
+    for cluster in top_clusters_with_terms:
+        if cluster == -1:
+            continue
+        keywords_set = set(top_clusters_with_terms[cluster])
+        abstracts = document_cluster_mapping[document_cluster_mapping\
+                                        ['Topic'] == cluster]['Document'].tolist()
+        indeces = document_cluster_mapping[document_cluster_mapping\
+                                        ['Topic'] == cluster]['Document'].index.tolist()
+
+        for abstract, index in zip(abstracts, indeces):
+            abstract_wordset = set(abstract.lower().split())
+            # check the intersection size between cluster keywords and the abstract
+            if len(abstract_wordset.intersection(keywords_set)) >= floor(len(keywords_set)/3):
+                document_cluster_mapping.loc[index, 'Keyword_match'] = True
+            else:
+                document_cluster_mapping.loc[index, 'Keyword_match'] = False
+
+    return document_cluster_mapping
+
+def save_results(document_cluster_mapping_total, run_start):
+    
+    run_dir = os.path.join('./_pipeline_runs/', run_start)
+    with pd.ExcelWriter(os.path.join(run_dir, '_general_results.xlsx'), \
+                        engine='openpyxl', mode='w') as writer:
+        document_cluster_mapping_total.to_excel(writer, \
+                                        sheet_name=f'{run_start}_docs', \
+                                        index=False)
+
 def main(args):
 
     start_date = args.start_date
     end_date = args.end_date
     token_file = args.token_file
-    docs_per_cluster = args.docs_per_cluster
     plot_model = args.plot_model
+
+    run_start = str(round(time.time()))
 
     # get entries from the DB
     connection = connect_mysql_sql_db()
@@ -133,32 +223,56 @@ def main(args):
     # close the SQL connection
     connection.close()
 
-    # model with BERTopic
-    top_clusters_with_terms, document_cluster_mapping = \
-        model_clusters(db_entries['summary'],\
-        docs_per_cluster,\
-        plot_model)
+    # loop over tags provided by arxive
+    # Coputer Vision, language and NLP, Audio and Speech, Multi-Agent Systems,
+    # Machine Learning, Artificial Intelligence 
+    relevant_tags = ['cs.CV', 'cs.CL', 'eess.AS', 'cs.MA', 'cs.LG', 'cs.AI']
+    
+    for index, category_tag in enumerate(tqdm(relevant_tags)):
 
-    # label_clusters with Aleph Alpha
-    token = read_aa_token(token_file)
-    labeled_clusters = label_clusters(top_clusters_with_terms, token)
+        tagged_db_entries = db_entries[db_entries['categories'].str.contains(category_tag, na=False)]
+        tagged_db_entries.reset_index(inplace=True)
 
-    # match original documents with Aleph Alpha labels
-    document_cluster_mapping['cluster_label'] = \
+        # model clusters with UMAP, HDBSCAN, and BERTopic
+        top_clusters_with_terms, document_cluster_mapping = \
+            model_clusters(tagged_db_entries['summary'].str.replace('\n', ' ', regex=True),\
+                            plot_model, run_start, category_tag)
+
+        # filter clustered abstracts based on cluster keywords
+        document_cluster_mapping = filter_abstracts_in_clusters(document_cluster_mapping,\
+                                                            top_clusters_with_terms)
+
+        # label clusters with Aleph Alpha
+        token = read_aa_token(token_file)
+        labeled_clusters = label_clusters(top_clusters_with_terms, token)
+
+        # get translated summary from Aleph Alpha
+        # abstracts = document_cluster_mapping['Document']
+        # translated_summaries = summarize_translate(abstracts, token)
+
+        # match abstracts with Aleph Alpha topic labels and summaries
+        document_cluster_mapping['Topic_label'] = \
                         document_cluster_mapping['Topic'].map(labeled_clusters)
-    document_cluster_mapping.columns = ['abstract', 'topic_cluster', 'doc_probability',\
-                                        'topic_label']
-    # output table for debugging
-    if os.path.isfile('labeled_clusters.xlsx'):
-        mode='a'
-    else:
-        mode='w'
+        # document_cluster_mapping['Document_summary'] = \
+        #                 document_cluster_mapping['Document'].map(translated_summaries)
 
-    with pd.ExcelWriter('_labeled_clusters.xlsx', engine='openpyxl', mode=mode) \
-                        as writer:
-        document_cluster_mapping.to_excel(writer, \
-                                      sheet_name=f'{len(db_entries)}_{docs_per_cluster}_docs', \
-                                      index=False)
+        # match abstracts with full PDF links
+        base_url = 'https://arxiv.org/abs/'
+        tagged_db_entries['pdf_link'] = base_url + tagged_db_entries['filename']
+        pdf_links = dict(zip(tagged_db_entries['summary'].str.replace('\n', ' ', regex=True),\
+                             tagged_db_entries['pdf_link']))
+        document_cluster_mapping['PDF_link'] = \
+            document_cluster_mapping['Document'].map(pdf_links)
+
+        # concatenate results for all arxive tags
+        if index == 0:
+            document_cluster_mapping_total = document_cluster_mapping
+        else:
+            document_cluster_mapping_total = pd.concat([document_cluster_mapping_total, \
+                            document_cluster_mapping]).reset_index(drop=True)
+
+    # output table for debugging
+    save_results(document_cluster_mapping_total, run_start)
 
     # TO DO: save all results to a CSV file
     # for format see https://github.com/thoughtworks/build-your-own-radar#using-csv-data
@@ -175,8 +289,6 @@ if __name__ == '__main__':
             default='2022-01-31', help='Latest publishing date.')
     parser.add_argument('-t', '--token_file', type=str, \
             default='token', help='File where the Aleph Alpha token is stored.')
-    parser.add_argument('-dc', '--docs_per_cluster', type=int, \
-            default=25, help='Approximate number of documents per each topic.')
     parser.add_argument('-pm', '--plot_model', type=bool, \
             default=True, help='If set to True, topic model is visualized.')
 
