@@ -113,46 +113,47 @@ def summary_three_shots():
 
     return few_shots
 
-# TO DO
-def trans_summary_shots():
+
+def translation_prompt():
+    few_shots =  """Translate the following sentence from English to German:
+    ###
+    English: {}
+    German:
+        """
+
+    return few_shots
+
+def translation_shots():
 
     few_shots = """
     ###
-    Text: We present a neural network approach to transfer the motion from a single image of an articulated object to a rest-state 3D model Our network learns to predict the object's pose part segmentation and corresponding motion parameters to reproduce the articulation shown in the input image
-    Summary:
+    English: The dominant sequence transduction models are based on complex recurrent or convolutional neural networks in an encoder-decoder configuration.
+    German: Die vorherrschenden Modelle zur Sequenzumsetzung basieren auf komplexen rekurrenten oder konvolutionären neuronalen Netzen in einer Encoder-Decoder-Konfiguration. 
     ###
-    Text: Unlike language tasks where the output space is usually limited to a set of tokens the output space of visual tasks is more complicated making it difficult to build a unified visual model for various visual tasks In this paper we seek to unify the output space of visual tasks so that we can also build a unified model for visual tasks
-    Summary:
+    English: The best performing models also connect the encoder and decoder through an attention mechanism. 
+    German: Die leistungsstärksten Modelle verbinden Kodierer und Dekodierer auch durch einen Aufmerksamkeitsmechanismus.
     ###
-    Text: Autoformalization seeks to address this by translating proofs written in natural language into a formal representation that is computer-verifiable via interactive theorem provers In this paper we introduce a semantic parsing approach based on the Universal Transformer architecture that translates elementary mathematical proofs into an equivalent formalization in the language of the Coq interactive theorem prover
-    Summary:
+    English: We propose a new simple network architecture, the Transformer, based solely on attention mechanisms, dispensing with recurrence and convolutions entirely.
+    German: Wir schlagen eine neue, einfache Netzwerkarchitektur, den Transformer, vor, die ausschließlich auf Aufmerksamkeitsmechanismen basiert und auf Rekursion und Konvolution vollständig verzichtet.
     ###
-    Text: In this paper we explored the use of deep learning for the prediction of aortic flow metrics obtained using 4D flow MRI using wearable seismocardiography devices We hypothesized that deep learning could be used to identify pathological changes in blood flow
-    Summary:
+    English: Experiments on two machine translation tasks show these models to be superior in quality while being more parallelizable and requiring significantly less time to train.
+    German: Experimente mit zwei maschinellen Übersetzungsaufgaben zeigen, dass diese Modelle qualitativ überlegen sind, während sie besser parallelisierbar sind und deutlich weniger Zeit zum Trainieren benötigen. 
     ###
-    Text: Fashion-image editing represents a challenging computer vision task where the goal is to incorporate selected apparel into a given input image Most existing techniques known as Virtual Try-On methods deal with this task by first selecting an example image of the desired apparel and then transferring the clothing onto the target person Conversely in this paper we consider editing fashion images with text descriptions
-    Summary:
+    English: Our model achieves 28.4 BLEU on the WMT 2014 English-to-German translation task, improving over the existing best results, including ensembles by over 2 BLEU.
+    German: Unser Modell erreicht 28,4 BLEU bei der WMT 2014 Englisch-Deutsch-Übersetzungsaufgabe und übertrifft damit die bisher besten Ergebnisse, einschließlich Ensembles, um über 2 BLEU. 
     ###
-    Text: Developing agents that can execute multiple skills by learning from pre-collected datasets is an important problem in robotics where online interaction with the environment is extremely time-consuming In this work we propose a novel self-supervised learning phase on the pre-collected dataset to understand the structure and the dynamics of the model and shape a dense reward function for learning policies offline
-    Summary:
+    English: On the WMT 2014 English-to-French translation task, our model establishes a new single-model state-of-the-art BLEU score of 41.8 after training for 3.5 days on eight GPUs, a small fraction of the training costs of the best models from the literature. 
+    German: Bei der WMT 2014 Englisch-Französisch-Übersetzungsaufgabe erreicht unser Modell nach 3,5 Tagen Training auf acht GPUs einen neuen BLEU-Wert von 41,8, was nur einen Bruchteil der Trainingskosten der besten Modelle aus der Literatur ausmacht.
     ###
-    Text: The recent spike in certified Artificial Intelligence tools for healthcare has renewed the debate around adoption of this technology One thread of such debate concerns Explainable AI and its promise to render AI devices more transparent and trustworthy we introduce a distinction between feature importance of low- and high-level features We argue that for data types where low-level features come endowed with a clear semantics such as tabular data
-    Summary:
+    English: We show that the Transformer generalizes well to other tasks by applying it successfully to English constituency parsing both with large and limited training data.
+    German: Wir zeigen, dass sich der Transformer gut auf andere Aufgaben verallgemeinern lässt, indem wir ihn erfolgreich auf englisches Conistuency Parsing sowohl mit großen als auch mit begrenzten Trainingsdaten anwenden.
     ###
-    Text: Privacy assistants help users manage their privacy online Their tasks could vary from detecting privacy violations to recommending sharing actions for content that the user intends to share Recent work on these tasks are promising and show that privacy assistants can successfully tackle them However for such privacy assistants to be employed by users it is important that these assistants can explain their decisions to users Accordingly this paper develops a methodology to create explanations of privacy
-    Summary:
-    ###
-    Text: Modeling and understanding time remains a challenge in contemporary video understanding models In this paper we consider a specific aspect of temporal understanding: consistency of time order as elicited by before/after relations We establish that six existing video-language models struggle to understand even such simple temporal relations We then question whether it is feasible to equip these foundational models with temporal awareness without re-training them from scratch Towards this we propose a temporal adaptation recipe on top of one such model VideoCLIP based on post-pretraining on a small amount of video-text data
-    Summary:
-    ###
-    Text: Although remarkable progress on the neural table-to-text methods has been made the generalization issues hinder the applicability of these models due to the limited source tables Large-scale pretrained language models sound like a promising solution to tackle such issues However how to effectively bridge the gap between the structured table and the text input by fully leveraging table information to fuel the pretrained model In this paper to implement the table-to-text generation with pretrained language model we propose a table structure understanding and text deliberating approach namely TASD Specifically
-    Summary:
-    ###
-    Text: {}
-    Summary:
+    English: {}
+    German: 
     """
 
     return few_shots
+
 
 def keyword_shots():
 
