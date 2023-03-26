@@ -8,13 +8,26 @@
     
     Single steps include:
     1) Connecting to SQL database and fetching article based on their publication
-    date.
-    2) Using BERTopic to identify topic clusters and to extract top-rated keywords
-    for each of them. It's possible to use a sparse or a dense model.
+    date. If manual_mode flag is set to true, dates are passed via the script
+    parameters. Otherwise, the download dates are chosen in relation to the time
+    stamp when the pipeline is run. This allows automatic deployment of the script.
+
+    2) Using UMAP/HDBSCAN/BERTopic to identify topic clusters and to extract
+    top-rated keywords for each of them. A SentenceTransformer model is used to
+    embbed the incoming text.
+
     3) Using an Aleph Alpha completion prompt with few shots to identify a general
-    topic for each cluster.
-    4) TO DO: save the results to a CSV file to pass the data to a D3-based frontend.
-    For more info see https://github.com/thoughtworks/build-your-own-radar#using-csv-data
+    topic label for each cluster.
+
+    4) Using an Aleph Alpha completion prompt with few shots to summarize and
+    translate each abstract.
+
+    5) Combining processed data with metadata (Authors, Titles, PDF links).
+
+    6) Converting and saving all results to a JSON file which will be consumed by
+    a GUI. For more info see https://github.com/thoughtworks/build-your-own-radar
+    When manual_mode is set to True additionaly saving the results to a .xlsx
+    file for documentation/debugging purposes.
     
     To use the Aleph Alpha API, you have to save your token in the same directory
     as the ai_radar_pipeline.py script in a file called token (without any extension).
@@ -41,17 +54,23 @@
     '''
 
 import argparse
+from collections import defaultdict
+import json
 import os
 from math import floor
 from tqdm import tqdm
 import time
 import datetime
+from dateutil.relativedelta import relativedelta
 
+from google.cloud import storage
+
+import asyncio
 from database_handling import connect_mysql_sql_db, download_all_articles_by_date
 
 from aleph_alpha_client import AlephAlphaModel, AsyncClient, Prompt, CompletionRequest
 from few_shots_lib import topic_from_keys_shots, summary_shots_translation_shorter, \
-    summary_shots
+    summary_shots_translation_tiny, summary_shots
 
 import pandas as pd
 import numpy as np
@@ -63,7 +82,7 @@ from bertopic import BERTopic
 from sentence_transformers import SentenceTransformer
 from visualize_topic_model import visualize_topic_model
 
-def model_clusters(documents, plot_model, run_start, category_tag):
+def model_clusters(documents, manual_mode, run_start, category_tag):
 
     vectorizer_model = TfidfVectorizer(stop_words="english", ngram_range=(1, 2))
     #vectorizer_model = CountVectorizer(stop_words="english")
@@ -74,7 +93,11 @@ def model_clusters(documents, plot_model, run_start, category_tag):
     print(f'=================================================================')
     print(f'Embedding documents with the tag {category_tag} as vectors.')
 
-    embeddings = sentence_model.encode(documents, show_progress_bar=True)
+    try:
+        embeddings = sentence_model.encode(documents, show_progress_bar=True)
+    except:
+        print('GPUs RAM is probably full. Try to flush it first.')
+        breakpoint()
 
     # define UMAP model to reduce embeddings dimension
     umap_model = umap.UMAP(n_neighbors=15,
@@ -119,17 +142,16 @@ def model_clusters(documents, plot_model, run_start, category_tag):
         top_clusters_with_terms[cluster] = [keyword[0] for keyword in \
                 clusters_with_keywords[cluster]]
 
-    if plot_model:
+    if manual_mode:
         run_dir = os.path.join('./_pipeline_runs/', run_start)
         if not os.path.isdir(run_dir):
-            os.mkdir(run_dir)
+            os.makedirs(run_dir)
         visualize_topic_model(topic_model, run_dir, category_tag)
 
     document_info = topic_model.get_document_info(documents)
     document_cluster_mapping = document_info[['Document', 'Topic',\
                                               'Representative_document']]
 
-    breakpoint()
     return top_clusters_with_terms, document_cluster_mapping
 
 def read_aa_token(token_file):
@@ -138,7 +160,7 @@ def read_aa_token(token_file):
         with open(token_file, 'r', encoding='utf-8') as f:
             token = f.readlines()
 
-    return token[0]
+    return token[0].strip()
 
 def label_clusters(top_clusters_with_terms, token):
 
@@ -151,7 +173,7 @@ def label_clusters(top_clusters_with_terms, token):
     print(f'=================================================================')
     print(f'Labelling topic clusters.')
     for cluster, keywords in tqdm(top_clusters_with_terms.items()):
-        prompted_keywords = Prompt(few_shots.format(' '.join(keywords)))
+        prompted_keywords = Prompt.from_text(few_shots.format(' '.join(keywords)))
         request = CompletionRequest(prompt=prompted_keywords, maximum_tokens=5, \
                                     stop_sequences=['###'])
         result = model.complete(request)
@@ -161,12 +183,13 @@ def label_clusters(top_clusters_with_terms, token):
     return labeled_clusters
 
 async def summarize_translate(abstracts, token):
-    few_shots = summary_shots_translation_shorter()
+    few_shots = summary_shots_translation_tiny()
+    few_shots = few_shots.strip().replace('\n   ', '')
 
     async with AsyncClient(token=token) as client:
         requests = (
-            CompletionRequest(prompt=Prompt(few_shots.format(abstract)),
-                              maximum_tokens=200, stop_sequences=['###'])
+            CompletionRequest(prompt=Prompt.from_text(few_shots.format(abstract)),
+                maximum_tokens=200, stop_sequences=['###'])
             for abstract in abstracts)
 
         results = await asyncio.gather(
@@ -176,6 +199,7 @@ async def summarize_translate(abstracts, token):
         await client.close()
 
     return results
+
 
 def filter_abstracts_in_clusters(document_cluster_mapping, top_clusters_with_terms):
 
@@ -200,7 +224,7 @@ def filter_abstracts_in_clusters(document_cluster_mapping, top_clusters_with_ter
 
     return document_cluster_mapping
 
-def save_results(document_cluster_mapping_total, run_start):
+def save_results_as_xlsx(document_cluster_mapping_total, run_start):
     
     run_dir = os.path.join('./_pipeline_runs/', run_start)
     with pd.ExcelWriter(os.path.join(run_dir, '_general_results.xlsx'), \
@@ -209,15 +233,87 @@ def save_results(document_cluster_mapping_total, run_start):
                                         sheet_name=f'{run_start}_docs', \
                                         index=False)
 
-def save_output_as_json(document_cluster_mapping_total, run_start_str):
-    pass
+def save_output_as_json(document_cluster_mapping, run_start_str):
+
+    # convert data
+    rings_category = pd.cut(document_cluster_mapping['Paper_counts'], \
+                            bins=[0,6,12,25,120], labels=[3, 2, 1, 0])
+    document_cluster_mapping.insert(5, 'Radar_ring', rings_category)
+
+    # compile source data frame
+    json_data_frame = pd.DataFrame(columns = ['name', 'ring', 'quadrant', \
+                                'isNew', 'authors', 'title', 'summary', 'link'])
+    json_data_frame['name'] = document_cluster_mapping['Topic_label'].str.capitalize()
+    json_data_frame['ring'] = document_cluster_mapping['Radar_ring']\
+        .apply(lambda x: 'adopt' if x <= 1 else 'hype')
+    json_data_frame['quadrant'] = document_cluster_mapping['Arxive_tag']
+    json_data_frame['isNew'] = 'FALSE'
+    json_data_frame['authors'] = document_cluster_mapping['Authors']\
+        .str.replace(';', ',', regex=True).str.strip()
+    json_data_frame['title'] = document_cluster_mapping['Title']\
+        .str.replace('\n', '', regex=True).str.replace('  ', ' ', regex=True).str.strip()
+    json_data_frame['summary'] = document_cluster_mapping['Document_summary']
+    json_data_frame['link'] = document_cluster_mapping['PDF_link']
+
+    # build JSON
+    topic_json_list = []
+
+    for topic_cluster in json_data_frame['name'].unique():
+        topic_json = defaultdict(list)
+        sub_data = json_data_frame[json_data_frame['name'] == topic_cluster]
+        topic_json["name"] = sub_data["name"].iloc[0]
+        topic_json["ring"] = sub_data["ring"].iloc[0]
+        if sub_data["quadrant"].iloc[0] == 'cs.LG':
+            topic_json["quadrant"] = 'Machine learning'
+        elif sub_data["quadrant"].iloc[0] == 'cs.CV':
+            topic_json["quadrant"] = 'Computer Vision'
+        elif sub_data["quadrant"].iloc[0] == 'cs.CL':
+            topic_json["quadrant"] = 'Natural Language Processing'
+        else:
+            topic_json["quadrant"] = 'Audio and Speech Processing'
+        topic_json["isNew"] = 'FALSE'
+
+        # limit loop to 5 iterations = 5 papers
+        for i, row in enumerate(sub_data[:5].iterrows()):
+            #authors_formatted = f'<h5>{row[1].authors}</h5>'
+            title_formatted = f'<h5>{row[1].title.strip()}</h5>'
+            summary_formatted = f'<p>{row[1].summary.strip()}</p>'
+            link_formatted = f'<a href=\"{row[1].link.strip()}\">{row[1].link}</a>'
+            # combine into a single string
+            if i == 0:
+                description_formatted = title_formatted + summary_formatted + \
+                    link_formatted
+            else:
+                description_formatted = description_formatted + title_formatted + \
+                    summary_formatted + link_formatted
+        topic_json["description"] = description_formatted
+        topic_json_list.append(topic_json)
+
+    json_object = json.dumps(topic_json_list, indent=4, ensure_ascii=False)
+    breakpoint()
+
+    with open(f'_pipeline_output_{run_start_str}.json', 'w') as outfile:
+        outfile.write(json_object)
+
 
 def main(args):
 
-    start_date = args.start_date
-    end_date = args.end_date
+    manual_mode = args.manual_mode
+
+    if manual_mode:
+        start_date = args.start_date
+        end_date = args.end_date
+    else:
+        # assuming the pipeline runs on the first of each month
+        todays_date = datetime.datetime.today().strftime('%Y-%m-%d')
+        # a month before (first of the previous month)
+        start_date = datetime.datetime.strftime(datetime.datetime.strptime\
+                    (todays_date, '%Y-%m-%d') - relativedelta(months=1), '%Y-%m-%d')
+        # yesterday (last day of the previous month)
+        end_date = datetime.datetime.strftime(datetime.datetime.strptime\
+                    (todays_date, '%Y-%m-%d') - relativedelta(days=1), '%Y-%m-%d')
+
     token_file = args.token_file
-    plot_model = args.plot_model
 
     run_start = round(time.time())
     run_start_str = str(run_start)
@@ -244,7 +340,6 @@ def main(args):
             for tag in relevant_tags_short:
                 tagged_db_entries = tagged_db_entries[~tagged_db_entries['categories']\
                                     .str.contains(tag, na=False)]
-                #tagged_db_entries.reset_index(inplace=True)
 
         else:
             tagged_db_entries = db_entries[db_entries['categories']\
@@ -254,7 +349,7 @@ def main(args):
         # model clusters with UMAP, HDBSCAN, and BERTopic
         top_clusters_with_terms, document_cluster_mapping = \
             model_clusters(tagged_db_entries['summary'].str.replace('\n', ' ', regex=True),\
-                           plot_model, run_start_str, category_tag)
+                           manual_mode, run_start_str, category_tag)
 
         # add Arxive category tag
         document_cluster_mapping['Arxive_tag'] = category_tag
@@ -269,7 +364,7 @@ def main(args):
 
         # get translated summary from Aleph Alpha
         abstracts = document_cluster_mapping['Document']
-        results = summarize_translate(abstracts, token)
+        results = asyncio.run(summarize_translate(abstracts, token))
 
         translated_summaries = {}
         for result, abstract in zip(results, abstracts):
@@ -281,17 +376,33 @@ def main(args):
                         document_cluster_mapping['Topic'].map(labeled_clusters)
         document_cluster_mapping['Document_summary'] = \
                  document_cluster_mapping['Document'].map(translated_summaries)
-        
+
+        # ADDING META INFORMATION TO THE TOPIC MODELLING RESULTS
+
         # add paper counts
         document_cluster_mapping['Paper_counts'] = document_cluster_mapping\
             .groupby(['Topic_label'])['Topic_label'].transform('count')
         
-        # using keyword matches only
+        # add paper counts using keyword matches only
         document_cluster_mapping['Paper_counts_matches'] = document_cluster_mapping\
             [document_cluster_mapping['Keyword_match'] == True]\
             .groupby(['Topic_label'])['Topic_label'].transform('count')
         
-        # match abstracts with full PDF links
+        # match each abstract with its title
+        titles = dict(zip(tagged_db_entries['summary'].str.replace('\n', ' ',\
+                            regex=True), tagged_db_entries['title']\
+                                .str.replace('\n', '', regex=True).str.strip()))
+        document_cluster_mapping['Title'] = \
+            document_cluster_mapping['Document'].map(titles)
+        
+        # match each abstract with its authors
+        authors = dict(zip(tagged_db_entries['summary'].str.replace('\n', ' ',\
+                            regex=True), tagged_db_entries['authors']\
+                                .str.replace(';', ',', regex=True)))
+        document_cluster_mapping['Title'] = \
+            document_cluster_mapping['Document'].map(authors)
+
+        # match each abstract with a full PDF link
         base_url = 'https://arxiv.org/abs/'
         tagged_db_entries['pdf_link'] = base_url + tagged_db_entries['filename']
         pdf_links = dict(zip(tagged_db_entries['summary'].str.replace('\n', ' ',\
@@ -301,20 +412,20 @@ def main(args):
 
         # get rid of the Topic column
         document_cluster_mapping = document_cluster_mapping.drop('Topic', axis=1)
-        
+
         # concatenate results for all arxive tags
         if index == 0:
             document_cluster_mapping_total = document_cluster_mapping
+            break
         else:
             document_cluster_mapping_total = pd.concat([document_cluster_mapping_total, \
                             document_cluster_mapping]).reset_index(drop=True)
-        breakpoint()
-    # output table for debugging
-    save_results(document_cluster_mapping_total, run_start_str)
 
-    # TO DO: save all results to a JSON file
-    # for format see https://github.com/zalando/tech-radar/blob/master/docs/index.html
-    # for format see https://github.com/thoughtworks/build-your-own-radar#using-csv-data
+    # output table for debugging
+    if manual_mode:
+        save_results_as_xlsx(document_cluster_mapping_total, run_start_str)
+
+    # save all topic modelling results to a JSON file
     save_output_as_json(document_cluster_mapping_total, run_start_str)
 
     t1 = time.time()
@@ -334,8 +445,8 @@ if __name__ == '__main__':
             default='2022-01-31', help='Latest publishing date.')
     parser.add_argument('-t', '--token_file', type=str, \
             default='token', help='File where the Aleph Alpha token is stored.')
-    parser.add_argument('-pm', '--plot_model', type=bool, \
-            default=True, help='If set to True, topic model is visualized.')
+    parser.add_argument('-m', '--manual_mode', type=bool, \
+            default=False, help='If set to True, additional debugging code is run.')
 
     main(parser.parse_args())
 
