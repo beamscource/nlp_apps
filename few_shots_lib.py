@@ -41,6 +41,30 @@ def summary_shots():
 
     return few_shots
 
+def summary_shots_german():
+
+    few_shots = """
+    ###
+    Text: In dieser Arbeit wird ein einfaches Verfahren zur Extraktion von Merkmalen, zur Klassifikation von sieben verschiedenen Emotionen und zur Erkennung von Gesichtsausdrücken in Echtzeit vorgestellt. In diesem Zusammenhang wird ein Multi-Layer Perceptron (MLP) verwendet, um die zuvor genannten Algorithmen zu trainieren. Um Gesichter zu klassifizieren, wird zunächst ein Bild vorverarbeitet, um die Gesichter zu lokalisieren und zu schneiden. Danach wird ein Facial Landmark Detection Library verwendet, um die Landmarken der einzelnen Gesichter zu detektieren. Danach wird das Gesicht in obere und untere Teile aufgeteilt, was die Extraktion der gewünschten Merkmale aus jedem Teil ermöglicht. In der vorgeschlagenen Methode werden sowohl geometrische als auch Texturmerkmale verwendet. Nach der Extraktionsphase wird ein normalisierter Vektor von Merkmalen erstellt.
+    Summary: In dieser Arbeit wird ein Verfahren zur Klassifikation von sieben verschiedenen Emotionen und zur Erkennung von Gesichtsausdrücken mit Hilfe eines Multi-Layer Perceptron (MLP)vorgestellt.
+    ###
+    Text: Wir stellen ein neuartiges und allgemeines Verfahren vor, das die zeitliche Konsistenz von Videos automatisch verbessert. Unser Ansatz wird nur auf ein Paar von Original- und bearbeiteten Videos trainiert, anstatt auf eine große Trainingsmenge. Im Gegensatz zu den meisten bisherigen Methoden, die die zeitliche Konsistenz mit optischen Fluss erzwingen, zeigen wir, dass die zeitliche Konsistenz durch das Trainieren eines konvolutionalen neuronalen Netzes auf einem Video mit Deep Video Prior (DVP) erreicht werden kann. Darüber hinaus wird ein sorgfältig konzipierter iterativ gewichteter Trainingsansatz vorgestellt, um die schwierige multimodale Konsistenzproblem zu lösen. Wir demonstrieren die Effektivität unseres Ansatzes auf 7 Computer Vision Aufgaben auf Videos.
+    Summary: Wir stellen ein neuartiges Verfahren vor, das die zeitliche Konsistenz von Videos verbessert. Im Gegensatz zu den bisherigen Methoden zeigen wir, dass die zeitliche Konsistenz durch das Trainieren eines konvolutionalen neuronalen Netzes auf einem Video mit Deep Video Prior (DVP) erreicht werden kann.
+    ###
+    Text: Die Analyse des globalen Klimawandels, der Landwirtschaft und der Waldkontrolle erfordert die zeitnahe Beobachtung der Landnutzung und Landnutzungsänderung (LULCC). In den letzten Jahren haben einige Deep Learning (DL)-Methoden für die automatische Klassifizierung der Landnutzung (LC) für globale und homogene Daten entwickelt. Allerdings können diese DL-Modelle nicht effektiv auf reale Daten angewendet werden. z.B. eine große Anzahl von Klassen, multi-saisonale Daten, verschiedene Klimaregionen, ein hohes Ungleichgewicht der Label-Datensätze und eine niedrige räumliche Auflösung. In dieser Arbeit stellen wir unseren neuartigen leichten (nur 89k Parameter) Convolutional Neural Network (ConvNet) vor, um die LC-Klassifizierung und Analyse zu bewältigen, um diese Probleme für die Region Jalisco zu lösen. Im Gegensatz zu den globalen Ansätzen bietet die regionale Daten die Kontext-Spezifität, die von den Entscheidungsträgern für die Planung der Landnutzung und der Verwaltung, der Schutzgebiete oder der Ökosystemdienste benötigt wird.
+    Summary: Die Analyse des globalen Klimawandels, der Landwirtschaft und der Waldkontrolle erfordert die Beobachtung der Landnutzung und Landnutzungsänderung (LULCC). In den letzten Jahren wurden einige Deep Learning (DL)-Methoden für die automatische Klassifizierung der Landnutzung (LC) entwickelt. Diese DL-Modelle können nicht auf reale Daten angewendet werden. In dieser Arbeit stellen wir ein leichtes Convolutional Neural Network (ConvNet) vor, um die LC-Klassifizierung und Analyse zu bewältigen.
+    ###
+    Text: Wir stellen zwei klinische Sprachmodelle vor, die aus großen klinischen Korpora trainiert wurden. Die Modelle Clinical-Longformer und Clinical-BigBird sind auf die Erkennung von medizinischen Entitäten und die Beantwortung medizinischer Fragen spezialisiert. Sie erreichen eine bessere Leistung als das klinische Sprachmodell ClinicalBERT und andere kurze Sequenzmodelle. Wir stellen unsere Quellcodes und die prä-trainierten Modelle zur Verfügung.
+    Summary: Wir stellen die Modelle Clinical-Longformer und Clinical-BigBird vor, die zur Erkennung von medizinischen Entitäten und die Beantwortung medizinischer Fragen trainiert wurden. Beide erreichen eine bessere Leistung als das klinische Sprachmodell ClinicalBERT.
+    ###
+    Text: Personalisierung ermöglicht es Unternehmen, aus vergangenen Interaktionen mit Kunden zu lernen und diese so individuell wie möglich anzusprechen. Wir betrachten das Problem, für einen gegebenen Kunden die optimale Werbeaktion aus mehreren Optionen zu bestimmen, als ein Problem des kontextuellen Banditen. Die Identifikation von Informationen für den Kunden und/oder die Kampagne kann genutzt werden, um unbekannte Kunden- und/oder Kampagnenmerkmale zu bestimmen, die die optimale Werbeaktion verbessern. Wir demonstrieren ähnliche Vorhersageleistungen für (a) ein breites und tiefes Netzwerk, das Identifikationsinformationen (oder andere kategorische Merkmale) als Eingabe für den breiten Teil verwendet und (b) ein tiefes-only Netzwerk, das die kategorischen Merkmale in die Eingabe einbettet. Die Verbesserung der Vorhersageleistung durch die Verwendung von kategorischen Merkmalen hängt von der Variabilität der unbekannten numerischen Merkmale für jede Kategorie ab.
+    Summary: Personalisierung ermöglicht es Unternehmen, aus vergangenen Interaktionen mit Kunden zu lernen und diese so individuell wie möglich anzusprechen. Wir untersuchen das Problem, für einen Kunden die optimale Werbeaktion aus mehreren Optionen mit Hilfe eines kontextuellen Banditen zu bestimmen.
+    ###
+    Text: {}
+    Summary:
+    """
+
+    return few_shots
 
 def summary_shots_translation():
 
@@ -88,6 +112,30 @@ def summary_shots_translation_shorter():
     ###
     Text: We present a neural network approach to transfer the motion from a single image of an articulated object to a rest-state 3D model Our network learns to predict the object's pose part segmentation and corresponding motion parameters to reproduce the articulation shown in the input image
     Summary: Wir stellen ein neuronales Netz vor, das lernt, die Position eines Objekts und die entsprechenden Bewegungsparameter aus einem Bild vorherzusagen.
+    ###
+    Text: Unlike language tasks where the output space is usually limited to a set of tokens the output space of visual tasks is more complicated making it difficult to build a unified visual model for various visual tasks In this paper we seek to unify the output space of visual tasks so that we can also build a unified model for visual tasks
+    Summary: Wir versuchen, den Output Space von visuellen Aufgaben zu vereinheitlichen. Der Output Space ist komplexer als bei Sprachaufgaben, da dort der Ausgaberaum begrenzt ist
+    ###
+    Text: Autoformalization seeks to address this by translating proofs written in natural language into a formal representation that is computer-verifiable via interactive theorem provers In this paper we introduce a semantic parsing approach based on the Universal Transformer architecture that translates elementary mathematical proofs into an equivalent formalization in the language of the Coq interactive theorem prover
+    Summary: Wir stellen einen semantischen Parsing-Ansatz vor, der auf der Universal Transformer-Architektur basiert, um in natürlicher Sprache geschriebene Beweise in eine formale Darstellung zu übersetzen
+    ###
+    Text: In this paper we explored the use of deep learning for the prediction of aortic flow metrics obtained using 4D flow MRI using wearable seismocardiography devices We hypothesized that deep learning could be used to identify pathological changes in blood flow
+    Summary: Wir untersuchten den Einsatz von Deep Learning für die Vorhersage von Aortenflussmetriken, die mithilfe von 4D-Flow-MRT unter Verwendung von tragbaren Seismokardiographiegeräten gewonnen wurden
+    ###
+    Text: Fashion-image editing represents a challenging computer vision task where the goal is to incorporate selected apparel into a given input image Most existing techniques known as Virtual Try-On methods deal with this task by first selecting an example image of the desired apparel and then transferring the clothing onto the target person Conversely in this paper we consider editing fashion images with text descriptions
+    Summary: In diesem Artikel beschäftigen wir uns mit der Erstellung von Modebildern mit Hilfe von Textbeschreibungen statt der üblichen Auswahl der Wunschkleidung anhand von Bildern
+    Text: {}
+    Summary:
+    """
+
+    return few_shots
+
+def summary_shots_translation_tiny():
+
+    few_shots = """
+    ###
+    Text: That is a text in English.
+    Summary: Das ist ein Text auf Deutsch.
     ###
     Text: {}
     Summary:
@@ -153,7 +201,6 @@ def translation_shots():
     """
 
     return few_shots
-
 
 def keyword_shots():
 
